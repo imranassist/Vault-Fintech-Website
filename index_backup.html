@@ -1,0 +1,2482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vault — Banking infrastructure for serious operators</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=geist@400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Off-black, warm */
+    --ink: #0e0e10;
+    --ink-2: #16161a;
+    --ink-3: #1d1d22;
+    --ink-4: #2a2a30;
+
+    /* Off-white, warm */
+    --paper: #f7f5f0;
+    --paper-2: #efeae0;
+    --paper-3: #e6dfd0;
+
+    /* Greys */
+    --mute: #8c8a85;
+    --mute-2: #5e5d59;
+    --line: rgba(14, 14, 16, 0.08);
+    --line-2: rgba(14, 14, 16, 0.18);
+    --line-dark: rgba(247, 245, 240, 0.08);
+    --line-dark-2: rgba(247, 245, 240, 0.18);
+
+    /* Accent: ONE color, used surgically */
+    --lime: #d4ff3d;
+    --lime-deep: #a8d12d;
+
+    /* Semantic */
+    --pos: #4cb96b;
+    --neg: #d8543e;
+
+    --serif: 'Instrument Serif', 'Times New Roman', serif;
+    --sans: 'Geist', system-ui, -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  *::selection { background: var(--lime); color: var(--ink); }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  /* === Persistent ledger grid === */
+  .grid-bg {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background-image:
+      linear-gradient(to right, var(--line) 1px, transparent 1px);
+    background-size: 8.333vw 100%;
+  }
+  @media (max-width: 1100px) {
+    .grid-bg { background-size: 16.66vw 100%; }
+  }
+
+  /* === Top utility bar — live ticker === */
+  .top-bar {
+    background: var(--ink);
+    color: var(--paper);
+    border-bottom: 1px solid var(--line-dark);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0;
+    position: relative;
+    z-index: 50;
+  }
+  .top-bar-inner {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    padding: 10px 32px;
+    gap: 32px;
+  }
+  .live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--lime);
+    font-weight: 500;
+  }
+  .live-pill .pulse {
+    width: 6px; height: 6px;
+    background: var(--lime);
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 var(--lime);
+    animation: pulse-dot 2s ease-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(212, 255, 61, 0.6); }
+    50% { box-shadow: 0 0 0 6px rgba(212, 255, 61, 0); }
+  }
+  .ticker {
+    overflow: hidden;
+    height: 14px;
+    position: relative;
+  }
+  .ticker-track {
+    display: flex;
+    gap: 40px;
+    white-space: nowrap;
+    animation: tick 80s linear infinite;
+    will-change: transform;
+  }
+  .ticker span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(247, 245, 240, 0.7);
+  }
+  .ticker .pair { color: var(--paper); font-weight: 500; }
+  .ticker .up { color: var(--pos); }
+  .ticker .dn { color: var(--neg); }
+  .ticker .sep { color: var(--mute-2); }
+  @keyframes tick {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .top-bar-right {
+    display: flex;
+    gap: 18px;
+    color: rgba(247, 245, 240, 0.6);
+  }
+  .top-bar-right .dot { color: var(--pos); }
+
+  /* === Nav === */
+  nav {
+    position: sticky;
+    top: 0;
+    background: rgba(247, 245, 240, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--line);
+    z-index: 50;
+    padding: 16px 32px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 40px;
+  }
+
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.02em;
+  }
+  .logo-mark {
+    width: 26px;
+    height: 26px;
+    background: var(--ink);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--paper);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1;
+    padding-bottom: 2px;
+    position: relative;
+  }
+  .logo-mark::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border: 1px dashed var(--ink);
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .logo:hover .logo-mark::after { opacity: 1; }
+
+  .nav-links {
+    display: flex;
+    gap: 4px;
+    list-style: none;
+    justify-content: center;
+  }
+  .nav-links a {
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    padding: 8px 14px;
+    border-radius: 6px;
+    transition: background 0.2s;
+  }
+  .nav-links a:hover { background: var(--paper-2); }
+  .nav-links a .badge {
+    display: inline-block;
+    margin-left: 6px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--mute);
+    border: 1px solid var(--line-2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    vertical-align: middle;
+  }
+
+  .nav-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .btn-ghost {
+    color: var(--ink);
+    background: transparent;
+  }
+  .btn-ghost:hover { background: var(--paper-2); }
+  .btn-ink {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .btn-ink:hover {
+    background: var(--ink-3);
+    transform: translateY(-1px);
+  }
+  .btn-lime {
+    background: var(--lime);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .btn-lime:hover {
+    background: var(--lime-deep);
+    transform: translateY(-1px);
+  }
+  .btn .arrow {
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .btn:hover .arrow {
+    transform: translate(2px, -2px);
+  }
+
+  /* === Hero === */
+  .hero {
+    position: relative;
+    z-index: 2;
+    padding: 80px 32px 60px;
+  }
+  .hero-frame {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 80px;
+    align-items: end;
+    min-height: 620px;
+  }
+
+  .hero-left { position: relative; }
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute-2);
+    margin-bottom: 60px;
+  }
+  .hero-meta .index {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+  .hero-meta .lime-dot {
+    color: var(--lime-deep);
+    font-weight: 500;
+  }
+
+  .hero-title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(56px, 8vw, 132px);
+    line-height: 0.92;
+    letter-spacing: -0.035em;
+    color: var(--ink);
+    margin-bottom: 36px;
+  }
+  .hero-title .italic {
+    font-style: italic;
+    color: var(--ink);
+  }
+  .hero-title .smaller {
+    font-size: 0.55em;
+    font-style: italic;
+    color: var(--mute-2);
+    display: inline-block;
+    transform: translateY(-0.4em);
+    margin: 0 0.15em;
+  }
+  .hero-title .underline {
+    position: relative;
+    display: inline-block;
+  }
+  .hero-title .underline::after {
+    content: '';
+    position: absolute;
+    left: 0; bottom: 0.08em;
+    width: 100%;
+    height: 0.06em;
+    background: var(--lime);
+    z-index: -1;
+  }
+
+  .hero-blurb {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--mute-2);
+    max-width: 520px;
+    margin-bottom: 48px;
+    font-weight: 400;
+  }
+  .hero-blurb strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 48px;
+  }
+  .hero-actions .btn-lime {
+    padding: 14px 22px;
+    font-size: 14px;
+  }
+  .hero-actions .btn-ghost {
+    padding: 14px 18px;
+    font-size: 14px;
+    border: 1px solid var(--line-2);
+  }
+  .hero-actions .btn-ghost:hover {
+    border-color: var(--ink);
+    background: transparent;
+  }
+
+  /* Hero footer — credentials */
+  .hero-creds {
+    display: flex;
+    gap: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute-2);
+  }
+  .hero-creds strong {
+    color: var(--ink);
+    font-weight: 500;
+    margin-right: 6px;
+  }
+
+  /* Hero right — live transaction ticker */
+  .hero-right {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: end;
+  }
+  .live-feed {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 30px 60px -20px rgba(14,14,16,0.25), 0 8px 20px -8px rgba(14,14,16,0.15);
+  }
+  .live-feed-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line-dark);
+    background: var(--ink-2);
+  }
+  .live-feed-head .title {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(247, 245, 240, 0.5);
+    letter-spacing: 0.02em;
+  }
+  .live-feed-head .live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--lime);
+  }
+  .live-feed-head .live .pulse {
+    width: 6px; height: 6px;
+    background: var(--lime);
+    border-radius: 50%;
+    animation: pulse-dot 2s ease-out infinite;
+  }
+
+  .live-feed-list {
+    padding: 8px 0;
+    height: 320px;
+    overflow: hidden;
+    position: relative;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+  }
+  .live-feed-track {
+    animation: feed-scroll 20s linear infinite;
+  }
+  @keyframes feed-scroll {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-50%); }
+  }
+  .live-row {
+    display: grid;
+    grid-template-columns: 60px 1fr auto 70px;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    transition: background 0.3s;
+  }
+  .live-row:hover { background: var(--ink-3); }
+  .live-row .time {
+    color: var(--mute);
+    font-size: 10px;
+  }
+  .live-row .desc {
+    color: var(--paper);
+    font-weight: 500;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .live-row .desc .from {
+    color: var(--mute);
+    font-weight: 400;
+  }
+  .live-row .amount {
+    font-weight: 500;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .live-row .amount.in { color: var(--pos); }
+  .live-row .amount.out { color: rgba(247, 245, 240, 0.85); }
+  .live-row .ccy {
+    color: var(--mute);
+    font-size: 10px;
+    text-align: right;
+  }
+
+  .live-feed-foot {
+    display: flex;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-top: 1px solid var(--line-dark);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--mute);
+    background: var(--ink-2);
+  }
+  .live-feed-foot strong {
+    color: var(--lime);
+    font-weight: 500;
+  }
+
+  /* === Trust strip === */
+  .trust {
+    position: relative;
+    z-index: 2;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 40px 32px;
+    border-top: 1px solid var(--line-dark);
+    border-bottom: 1px solid var(--line-dark);
+  }
+  .trust-inner {
+    display: grid;
+    grid-template-columns: 1fr 4fr;
+    gap: 60px;
+    align-items: center;
+  }
+  .trust-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute);
+    letter-spacing: 0.02em;
+    line-height: 1.6;
+  }
+  .trust-label strong {
+    color: var(--paper);
+    font-weight: 500;
+  }
+  .trust-logos {
+    display: flex;
+    justify-content: space-between;
+    gap: 32px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .trust-logo {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-style: italic;
+    color: rgba(247, 245, 240, 0.5);
+    transition: color 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.02em;
+  }
+  .trust-logo:hover { color: var(--paper); }
+  .trust-logo .mark {
+    width: 16px; height: 16px;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+  }
+  .trust-logo.shape-2 .mark { border-radius: 0; transform: rotate(45deg); }
+  .trust-logo.shape-3 .mark { border-radius: 50% 0; }
+  .trust-logo.shape-4 .mark {
+    background: currentColor;
+    border-radius: 0;
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  }
+  .trust-logo.shape-5 .mark { border-radius: 0 50% 0 50%; }
+  .trust-logo.shape-6 .mark {
+    background: currentColor;
+    border: none;
+    border-radius: 2px;
+    transform: skewX(-20deg);
+  }
+
+  /* === Section base === */
+  section {
+    position: relative;
+    z-index: 2;
+    padding: 140px 32px;
+  }
+  .section-head {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 60px;
+    margin-bottom: 80px;
+    align-items: end;
+    border-top: 1px solid var(--line);
+    padding-top: 32px;
+  }
+  .section-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute-2);
+    letter-spacing: 0.02em;
+  }
+  .section-eyebrow .index {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .section-eyebrow strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .section-title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(40px, 5.5vw, 84px);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+  }
+  .section-title em {
+    font-style: italic;
+  }
+  .section-title .accent {
+    position: relative;
+  }
+  .section-title .accent::after {
+    content: '';
+    position: absolute;
+    left: 0; bottom: 0.08em;
+    width: 100%; height: 0.05em;
+    background: var(--lime);
+    z-index: -1;
+  }
+
+  /* === Product / dashboard panel === */
+  .product {
+    background: var(--paper);
+  }
+  .product-frame {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 60px 120px -40px rgba(14,14,16,0.35), 0 16px 40px -12px rgba(14,14,16,0.2);
+    position: relative;
+  }
+  .product-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 0%, rgba(212, 255, 61, 0.04) 100%);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .product-tabs {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--line-dark);
+    background: var(--ink-2);
+    padding: 0 4px;
+    position: relative;
+    z-index: 2;
+  }
+  .product-tab {
+    padding: 14px 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    letter-spacing: 0.02em;
+  }
+  .product-tab.active {
+    color: var(--paper);
+    border-bottom-color: var(--lime);
+  }
+  .product-tab:hover:not(.active) { color: rgba(247, 245, 240, 0.85); }
+  .product-tab .indicator {
+    display: inline-block;
+    margin-right: 8px;
+    color: var(--lime);
+  }
+  .product-tab.active .indicator { color: var(--lime); }
+  .product-tabs-spacer { flex: 1; }
+  .product-controls {
+    display: flex;
+    gap: 8px;
+    padding-right: 12px;
+  }
+  .product-control {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--ink-3);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mute);
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+
+  .product-body {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 580px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Sidebar */
+  .product-side {
+    border-right: 1px solid var(--line-dark);
+    padding: 24px 0;
+    background: var(--ink-2);
+  }
+  .product-side-section {
+    padding: 0 16px 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--mute-2);
+    letter-spacing: 0.04em;
+    margin-top: 24px;
+  }
+  .product-side-section:first-child { margin-top: 0; }
+  .product-side-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: rgba(247, 245, 240, 0.7);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .product-side-item:hover { color: var(--paper); background: var(--ink-3); }
+  .product-side-item.active {
+    color: var(--paper);
+    background: var(--ink-3);
+    border-left-color: var(--lime);
+  }
+  .product-side-item .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--mute-2);
+  }
+  .product-side-item.active .dot { background: var(--lime); }
+  .product-side-item .count {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--mute);
+  }
+
+  /* Dashboard main */
+  .product-main {
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .product-main-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+  }
+  .product-main-head h3 {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 32px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .product-main-head .sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute);
+    margin-top: 6px;
+    display: block;
+  }
+  .product-main-head .filter {
+    display: flex;
+    gap: 4px;
+    background: var(--ink-3);
+    padding: 3px;
+    border-radius: 6px;
+  }
+  .product-main-head .filter button {
+    padding: 5px 11px;
+    background: transparent;
+    border: none;
+    color: var(--mute);
+    font-family: var(--mono);
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+  }
+  .product-main-head .filter button.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .balance-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line-dark);
+    border: 1px solid var(--line-dark);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .balance {
+    background: var(--ink-2);
+    padding: 18px;
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+  .balance:hover { background: var(--ink-3); }
+  .balance .ccy {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .balance .ccy .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--mute);
+    letter-spacing: 0.04em;
+  }
+  .balance .ccy .flag {
+    width: 18px; height: 12px;
+    border-radius: 2px;
+    background: var(--ink-3);
+    display: inline-block;
+  }
+  .balance .ccy .flag.usd {
+    background: linear-gradient(180deg, #c1c5d8 50%, #b54748 50%);
+  }
+  .balance .ccy .flag.eur { background: #1a3da3; position: relative; }
+  .balance .ccy .flag.eur::after {
+    content: '';
+    position: absolute;
+    inset: 30%;
+    background: var(--lime-deep);
+    border-radius: 50%;
+  }
+  .balance .ccy .flag.gbp {
+    background: linear-gradient(135deg, #013177 0%, #013177 35%, #d11 35%, #d11 65%, #013177 65%);
+  }
+  .balance .ccy .flag.jpy {
+    background: white;
+    position: relative;
+  }
+  .balance .ccy .flag.jpy::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px; height: 6px;
+    background: #d4001f;
+    border-radius: 50%;
+  }
+  .balance .amt {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--paper);
+    font-variant-numeric: tabular-nums;
+  }
+  .balance .delta {
+    font-family: var(--mono);
+    font-size: 10px;
+    margin-top: 6px;
+  }
+  .balance .delta.up { color: var(--pos); }
+  .balance .delta.dn { color: var(--neg); }
+
+  /* Chart */
+  .chart-card {
+    background: var(--ink-2);
+    border: 1px solid var(--line-dark);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .chart-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    margin-bottom: 16px;
+  }
+  .chart-card-head h4 {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .chart-card-head .stat {
+    text-align: right;
+  }
+  .chart-card-head .stat .v {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--paper);
+    font-variant-numeric: tabular-nums;
+  }
+  .chart-card-head .stat .l {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--mute);
+    margin-top: 2px;
+  }
+  .chart-svg {
+    width: 100%;
+    height: 140px;
+    display: block;
+  }
+  .chart-axis {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--mute);
+  }
+
+  /* Transaction list */
+  .tx-card {
+    background: var(--ink-2);
+    border: 1px solid var(--line-dark);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .tx-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-dark);
+  }
+  .tx-card-head h4 {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .tx-card-head .more {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--mute);
+    cursor: pointer;
+  }
+  .tx-card-head .more:hover { color: var(--paper); }
+  .tx-row {
+    display: grid;
+    grid-template-columns: 90px 1fr auto 100px;
+    align-items: center;
+    padding: 12px 18px;
+    border-top: 1px solid var(--line-dark);
+    font-family: var(--mono);
+    font-size: 12px;
+    transition: background 0.2s;
+    gap: 12px;
+  }
+  .tx-row:hover { background: var(--ink-3); }
+  .tx-row .when { color: var(--mute); font-size: 10px; }
+  .tx-row .who { color: var(--paper); font-weight: 500; font-family: var(--sans); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-row .who .ref { color: var(--mute); font-family: var(--mono); font-size: 10px; display: block; margin-top: 2px; }
+  .tx-row .amt { font-family: var(--mono); font-size: 13px; font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+  .tx-row .amt.in { color: var(--pos); }
+  .tx-row .amt.out { color: var(--paper); }
+  .tx-row .status { text-align: right; }
+  .tx-row .status span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 50px;
+    background: var(--ink-3);
+  }
+  .tx-row .status .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+  .tx-row .status .settled .dot { background: var(--pos); }
+  .tx-row .status .settled { color: var(--pos); }
+  .tx-row .status .pending .dot { background: var(--lime); }
+  .tx-row .status .pending { color: var(--lime); }
+
+  /* === Capabilities ===  */
+  .caps {
+    background: var(--paper-2);
+  }
+  .caps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line-2);
+    border: 1px solid var(--line-2);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .cap {
+    background: var(--paper);
+    padding: 36px 32px;
+    transition: background 0.3s;
+    cursor: default;
+    position: relative;
+  }
+  .cap:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .cap:hover .cap-num,
+  .cap:hover .cap-meta { color: rgba(247, 245, 240, 0.5); }
+  .cap:hover h3 { color: var(--paper); }
+  .cap:hover p { color: rgba(247, 245, 240, 0.7); }
+  .cap:hover .cap-arrow {
+    transform: translate(4px, -4px);
+    color: var(--lime);
+  }
+
+  .cap-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute-2);
+    margin-bottom: 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: color 0.3s;
+  }
+  .cap-arrow {
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    color: var(--mute-2);
+  }
+  .cap h3 {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    color: var(--ink);
+    transition: color 0.3s;
+  }
+  .cap h3 em { font-style: italic; }
+  .cap p {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--mute-2);
+    margin-bottom: 32px;
+    transition: color 0.3s;
+  }
+  .cap-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--mute-2);
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    gap: 16px;
+    transition: all 0.3s;
+  }
+  .cap:hover .cap-meta { border-top-color: var(--line-dark); }
+  .cap-meta strong { color: inherit; font-weight: 500; }
+
+  /* === Big stat === */
+  .megastat {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 160px 32px;
+    text-align: left;
+    border-top: 1px solid var(--line-dark);
+    border-bottom: 1px solid var(--line-dark);
+    overflow: hidden;
+  }
+  .megastat-meta {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute);
+    margin-bottom: 60px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--line-dark);
+  }
+  .megastat-meta strong { color: var(--paper); font-weight: 500; }
+  .megastat-meta .lime { color: var(--lime); }
+
+  .megastat-num {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(120px, 22vw, 360px);
+    line-height: 0.85;
+    letter-spacing: -0.05em;
+    color: var(--paper);
+    margin-bottom: 40px;
+    font-variant-numeric: tabular-nums;
+    position: relative;
+  }
+  .megastat-num .currency {
+    color: var(--lime);
+    font-style: italic;
+  }
+  .megastat-num .unit {
+    font-size: 0.4em;
+    color: var(--mute);
+    font-style: italic;
+    vertical-align: super;
+  }
+
+  .megastat-cap {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3.5vw, 48px);
+    font-style: italic;
+    color: rgba(247, 245, 240, 0.85);
+    max-width: 900px;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    margin-bottom: 60px;
+  }
+
+  .megastat-foot {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 32px;
+    border-top: 1px solid var(--line-dark);
+    padding-top: 40px;
+  }
+  .megastat-foot .cell .v {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-style: italic;
+    color: var(--paper);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .megastat-foot .cell .l {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute);
+    margin-top: 10px;
+    letter-spacing: 0.02em;
+  }
+
+  /* === Built for === */
+  .builtfor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  .audience {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 48px;
+    transition: all 0.4s;
+    position: relative;
+    overflow: hidden;
+  }
+  .audience:hover {
+    border-color: var(--ink);
+    transform: translateY(-4px);
+  }
+  .audience-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute-2);
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .audience-meta .index { color: var(--ink); font-weight: 500; }
+  .audience h3 {
+    font-family: var(--serif);
+    font-size: clamp(36px, 4vw, 56px);
+    font-weight: 400;
+    letter-spacing: -0.025em;
+    line-height: 1.05;
+    margin-bottom: 24px;
+  }
+  .audience h3 em { font-style: italic; }
+  .audience > p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--mute-2);
+    margin-bottom: 32px;
+    max-width: 480px;
+  }
+  .audience-feats {
+    list-style: none;
+    margin-bottom: 32px;
+  }
+  .audience-feats li {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.4;
+    align-items: start;
+  }
+  .audience-feats li:last-child { border-bottom: none; }
+  .audience-feats li::before {
+    content: '+';
+    font-family: var(--mono);
+    color: var(--lime-deep);
+    font-weight: 500;
+    margin-top: -2px;
+  }
+  .audience-quote {
+    border-top: 1px solid var(--line);
+    padding-top: 24px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.4;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .audience-quote .author {
+    display: block;
+    margin-top: 16px;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 11px;
+    color: var(--mute-2);
+    letter-spacing: 0.02em;
+  }
+  .audience-quote .author strong { color: var(--ink); font-weight: 500; }
+
+  /* === API / Developers section === */
+  .api {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 140px 32px;
+    border-top: 1px solid var(--line-dark);
+    border-bottom: 1px solid var(--line-dark);
+  }
+  .api .section-head { border-top-color: var(--line-dark); }
+  .api .section-eyebrow { color: var(--mute); }
+  .api .section-eyebrow .index, .api .section-eyebrow strong { color: var(--paper); }
+  .api .section-title { color: var(--paper); }
+
+  .api-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 60px;
+    align-items: start;
+  }
+  .api-text p {
+    font-size: 16px;
+    line-height: 1.65;
+    color: rgba(247, 245, 240, 0.7);
+    margin-bottom: 24px;
+    max-width: 460px;
+  }
+  .api-text p strong { color: var(--paper); font-weight: 500; }
+  .api-list {
+    list-style: none;
+    margin: 32px 0;
+    border-top: 1px solid var(--line-dark);
+  }
+  .api-list li {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line-dark);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: rgba(247, 245, 240, 0.7);
+  }
+  .api-list .key { color: var(--lime); }
+  .api-list strong { color: var(--paper); font-weight: 500; }
+
+  /* Code block */
+  .code-card {
+    background: var(--ink-2);
+    border: 1px solid var(--line-dark);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.4);
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line-dark);
+    background: var(--ink-3);
+  }
+  .code-head .dot {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--ink-4);
+  }
+  .code-head .dot.lime { background: var(--lime); }
+  .code-head .file {
+    margin-left: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute);
+  }
+  .code-head .file strong { color: var(--paper); font-weight: 500; }
+  .code-head .lang {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--mute);
+    padding: 2px 8px;
+    border: 1px solid var(--line-dark-2);
+    border-radius: 3px;
+  }
+  .code-body {
+    padding: 20px;
+    overflow-x: auto;
+  }
+  .code-body pre {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(247, 245, 240, 0.85);
+    counter-reset: line;
+  }
+  .code-body .ln {
+    display: block;
+    padding-left: 36px;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .code-body .ln:hover { background: rgba(212, 255, 61, 0.04); }
+  .code-body .ln::before {
+    counter-increment: line;
+    content: counter(line);
+    position: absolute;
+    left: 0;
+    width: 24px;
+    text-align: right;
+    color: var(--mute-2);
+    font-size: 11px;
+  }
+  .code-body .kw { color: #f0a96b; }
+  .code-body .str { color: var(--lime); }
+  .code-body .num { color: #6bd5e5; }
+  .code-body .com { color: var(--mute-2); font-style: italic; }
+  .code-body .fn { color: #c5a3f5; }
+  .code-body .punct { color: var(--mute); }
+  .code-body .key { color: #e3eaf5; }
+
+  /* === Pricing — financial ledger style === */
+  .pricing-table {
+    border: 1px solid var(--line-2);
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--paper);
+  }
+  .pricing-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr 1fr;
+    border-bottom: 1px solid var(--line);
+  }
+  .pricing-row:last-child { border-bottom: none; }
+  .pricing-row.head {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--line-2);
+  }
+  .pricing-row.head .cell-blank {
+    padding: 36px 32px;
+    border-right: 1px solid var(--line);
+  }
+  .pricing-row.head .cell-tier {
+    padding: 36px 32px;
+    border-right: 1px solid var(--line);
+  }
+  .pricing-row.head .cell-tier:last-child { border-right: none; }
+  .pricing-row.head .tier-name {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .pricing-row.head .tier-desc {
+    font-size: 13px;
+    color: var(--mute-2);
+    line-height: 1.4;
+    margin-bottom: 24px;
+    min-height: 36px;
+  }
+  .pricing-row.head .tier-price {
+    font-family: var(--mono);
+    font-size: 32px;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 4px;
+  }
+  .pricing-row.head .tier-price .unit {
+    font-size: 12px;
+    color: var(--mute-2);
+    margin-left: 4px;
+    font-weight: 400;
+    font-family: var(--sans);
+  }
+  .pricing-row.head .tier-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--mute-2);
+    margin-bottom: 24px;
+  }
+  .pricing-row.head .tier-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 11px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    transition: all 0.2s;
+  }
+  .pricing-row.head .tier-cta:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .pricing-row.head .featured {
+    background: var(--ink);
+    color: var(--paper);
+    border-right-color: var(--ink);
+  }
+  .pricing-row.head .featured .tier-name { color: var(--paper); }
+  .pricing-row.head .featured .tier-name::after {
+    content: 'most chosen';
+    display: inline-block;
+    margin-left: 12px;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 9px;
+    color: var(--lime);
+    background: var(--ink-3);
+    padding: 3px 8px;
+    border-radius: 50px;
+    vertical-align: middle;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .pricing-row.head .featured .tier-desc { color: rgba(247, 245, 240, 0.6); }
+  .pricing-row.head .featured .tier-price { color: var(--paper); }
+  .pricing-row.head .featured .tier-price .unit { color: var(--mute); }
+  .pricing-row.head .featured .tier-sub { color: var(--mute); }
+  .pricing-row.head .featured .tier-cta {
+    background: var(--lime);
+    border-color: var(--lime);
+    color: var(--ink);
+  }
+  .pricing-row.head .featured .tier-cta:hover {
+    background: var(--lime-deep);
+    border-color: var(--lime-deep);
+  }
+  .pricing-row .cell-feature {
+    padding: 14px 32px;
+    border-right: 1px solid var(--line);
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pricing-row .cell-feature:first-child {
+    text-align: left;
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    justify-content: flex-start;
+  }
+  .pricing-row .cell-feature:last-child { border-right: none; }
+  .pricing-row .cell-feature .dim { color: var(--mute-2); font-size: 11px; }
+  .pricing-row .cell-feature .check {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--lime-deep);
+    border-radius: 50%;
+  }
+  .pricing-row .cell-feature .x {
+    display: inline-block;
+    color: var(--mute);
+    font-family: var(--mono);
+  }
+  .pricing-row:nth-child(even):not(.head) {
+    background: var(--paper-2);
+  }
+  .pricing-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 32px;
+    background: var(--paper-2);
+    border-top: 1px solid var(--line-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute-2);
+  }
+  .pricing-foot strong { color: var(--ink); font-weight: 500; }
+
+  /* === Closing / promise === */
+  .promise {
+    background: var(--paper);
+    padding: 200px 32px 80px;
+    text-align: left;
+  }
+  .promise-eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--mute-2);
+    margin-bottom: 32px;
+    padding-top: 32px;
+    border-top: 1px solid var(--line);
+  }
+  .promise-eyebrow strong { color: var(--ink); font-weight: 500; }
+  .promise-title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(60px, 10vw, 180px);
+    line-height: 0.92;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    margin-bottom: 60px;
+    max-width: 1200px;
+  }
+  .promise-title em { font-style: italic; }
+  .promise-title .accent {
+    position: relative;
+    display: inline-block;
+  }
+  .promise-title .accent::after {
+    content: '';
+    position: absolute;
+    left: 0; bottom: 0.08em;
+    width: 100%; height: 0.08em;
+    background: var(--lime);
+    z-index: -1;
+  }
+  .promise-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 60px;
+  }
+  .promise-actions .btn-lime {
+    padding: 16px 24px;
+    font-size: 15px;
+  }
+  .promise-actions .btn-ghost {
+    padding: 16px 20px;
+    font-size: 15px;
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+  }
+  .promise-actions .btn-ghost:hover { border-color: var(--ink); }
+
+  /* === Footer === */
+  footer {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 80px 32px 0;
+    border-top: 1px solid var(--line-dark);
+  }
+  .footer-top {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
+    gap: 48px;
+    padding-bottom: 60px;
+    border-bottom: 1px solid var(--line-dark);
+  }
+  .footer-brand .logo { color: var(--paper); margin-bottom: 24px; }
+  .footer-brand .logo-mark { background: var(--paper); color: var(--ink); }
+  .footer-brand p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: rgba(247, 245, 240, 0.6);
+    margin-bottom: 28px;
+    max-width: 320px;
+  }
+  .footer-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute);
+    padding: 8px 14px;
+    border: 1px solid var(--line-dark-2);
+    border-radius: 50px;
+    width: fit-content;
+  }
+  .footer-status .dot {
+    width: 6px; height: 6px;
+    background: var(--lime);
+    border-radius: 50%;
+    animation: pulse-dot 2s ease-out infinite;
+  }
+  .footer-status strong { color: var(--paper); font-weight: 500; }
+  .footer-col h5 {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--lime);
+    margin-bottom: 24px;
+    letter-spacing: 0.04em;
+    font-weight: 500;
+  }
+  .footer-col ul { list-style: none; }
+  .footer-col li { margin-bottom: 12px; }
+  .footer-col a {
+    color: rgba(247, 245, 240, 0.7);
+    text-decoration: none;
+    font-size: 14px;
+    font-family: var(--sans);
+    transition: color 0.2s;
+  }
+  .footer-col a:hover { color: var(--paper); }
+
+  .footer-mega {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(120px, 24vw, 380px);
+    line-height: 0.9;
+    letter-spacing: -0.06em;
+    color: var(--ink-3);
+    text-align: left;
+    padding: 60px 0 30px;
+    user-select: none;
+    pointer-events: none;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 0 32px;
+    border-top: 1px solid var(--line-dark);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute-2);
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .footer-bottom .legal { display: flex; gap: 24px; }
+  .footer-bottom a { color: var(--mute-2); text-decoration: none; }
+  .footer-bottom a:hover { color: var(--paper); }
+
+  /* === Reveal === */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 1s cubic-bezier(0.2, 0.8, 0.2, 1), transform 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+
+  .word-reveal {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(40%) rotate(2deg);
+    transition: opacity 0.9s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .word-reveal.in {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+
+  /* === Scroll progress === */
+  .scroll-progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 2px;
+    background: var(--lime);
+    z-index: 9999;
+    width: 0%;
+    transition: width 0.05s linear;
+  }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .nav-links { display: none; }
+    .hero-frame { grid-template-columns: 1fr; gap: 40px; }
+    .hero-right { min-height: 400px; }
+    .trust-inner { grid-template-columns: 1fr; }
+    .section-head { grid-template-columns: 1fr; gap: 24px; }
+    .caps-grid { grid-template-columns: repeat(2, 1fr); }
+    .megastat-foot { grid-template-columns: repeat(2, 1fr); }
+    .builtfor-grid { grid-template-columns: 1fr; }
+    .api-grid { grid-template-columns: 1fr; }
+    .balance-grid { grid-template-columns: repeat(2, 1fr); }
+    .product-body { grid-template-columns: 1fr; }
+    .product-side { display: none; }
+    .footer-top { grid-template-columns: 1fr 1fr; gap: 32px; }
+    .pricing-row, .pricing-row.head { grid-template-columns: 1fr; }
+    .pricing-row .cell-feature { border-right: none; border-bottom: 1px solid var(--line); }
+    .pricing-row.head .cell-tier { border-right: none; border-bottom: 1px solid var(--line); }
+    .pricing-row.head .cell-blank { display: none; }
+  }
+  @media (max-width: 700px) {
+    .top-bar-inner { grid-template-columns: 1fr; gap: 8px; padding: 8px 16px; }
+    .top-bar-right { display: none; }
+    nav { padding: 12px 16px; gap: 16px; }
+    section { padding: 80px 16px; }
+    .hero { padding: 60px 16px 40px; }
+    .api { padding: 80px 16px; }
+    .megastat { padding: 100px 16px; }
+    .promise { padding: 120px 16px 60px; }
+    .caps-grid { grid-template-columns: 1fr; }
+    .megastat-foot { grid-template-columns: 1fr; gap: 24px; }
+    .footer-top { grid-template-columns: 1fr; }
+    .balance-grid { grid-template-columns: 1fr; }
+    .product-main { padding: 20px; }
+    .audience { padding: 32px 24px; }
+    .hero-actions, .promise-actions { flex-wrap: wrap; }
+    .hero-creds { flex-direction: column; gap: 12px; }
+    footer { padding: 60px 16px 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<div class="scroll-progress" id="progress"></div>
+
+<!-- ====== Top Ticker Bar ====== -->
+<div class="top-bar">
+  <div class="top-bar-inner">
+    <span class="live-pill"><span class="pulse"></span>MARKETS · LIVE</span>
+    <div class="ticker">
+      <div class="ticker-track">
+        <span><span class="pair">EUR/USD</span> 1.0842 <span class="up">+0.12%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">GBP/USD</span> 1.2651 <span class="up">+0.08%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/JPY</span> 154.22 <span class="dn">-0.24%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/CHF</span> 0.9123 <span class="up">+0.04%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/CAD</span> 1.3712 <span class="dn">-0.11%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">AUD/USD</span> 0.6584 <span class="up">+0.19%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/SGD</span> 1.3445 <span class="up">+0.02%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/HKD</span> 7.7820 <span class="dn">-0.01%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/INR</span> 83.31 <span class="up">+0.07%</span></span>
+        <span class="sep">·</span>
+        <!-- repeat -->
+        <span><span class="pair">EUR/USD</span> 1.0842 <span class="up">+0.12%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">GBP/USD</span> 1.2651 <span class="up">+0.08%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/JPY</span> 154.22 <span class="dn">-0.24%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/CHF</span> 0.9123 <span class="up">+0.04%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/CAD</span> 1.3712 <span class="dn">-0.11%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">AUD/USD</span> 0.6584 <span class="up">+0.19%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/SGD</span> 1.3445 <span class="up">+0.02%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/HKD</span> 7.7820 <span class="dn">-0.01%</span></span>
+        <span class="sep">·</span>
+        <span><span class="pair">USD/INR</span> 83.31 <span class="up">+0.07%</span></span>
+        <span class="sep">·</span>
+      </div>
+    </div>
+    <div class="top-bar-right">
+      <span><span class="dot">●</span> All systems operational</span>
+      <span>14ms · NYC</span>
+    </div>
+  </div>
+</div>
+
+<!-- ====== Nav ====== -->
+<nav>
+  <a href="#" class="logo">
+    <span class="logo-mark">V</span>
+    Vault
+  </a>
+  <ul class="nav-links">
+    <li><a href="#product">Product</a></li>
+    <li><a href="#caps">Capabilities</a></li>
+    <li><a href="#api">Developers <span class="badge">API</span></a></li>
+    <li><a href="#pricing">Pricing</a></li>
+    <li><a href="#">Changelog <span class="badge">12 NEW</span></a></li>
+    <li><a href="#">Customers</a></li>
+  </ul>
+  <div class="nav-right">
+    <a href="#" class="btn btn-ghost">Sign in</a>
+    <a href="#" class="btn btn-ink">Open account <span class="arrow">↗</span></a>
+  </div>
+</nav>
+
+<!-- ====== Hero ====== -->
+<header class="hero">
+  <div class="hero-frame">
+    <div class="hero-left">
+      <div class="hero-meta">
+        <span class="index">[ N°001 / VAULT ]</span>
+        <span><span class="lime-dot">●</span> Backed by Sequoia & Ribbit</span>
+        <span>Est. 2021 · NYC + Singapore</span>
+      </div>
+
+      <h1 class="hero-title">
+        <span class="word-reveal">Banking,</span><br>
+        <span class="word-reveal italic">ledgered.</span><br>
+        <span class="word-reveal">For <span class="underline">serious</span></span> <span class="word-reveal italic">operators.</span>
+      </h1>
+
+      <p class="hero-blurb reveal">
+        Multi-currency operating accounts, <strong>real-time FX</strong>, programmable wires, and an API your engineers will actually like. Built for treasury teams, finance ops, and the founders who do their own books at 2am.
+      </p>
+
+      <div class="hero-actions reveal">
+        <a href="#" class="btn btn-lime">Open an account <span class="arrow">↗</span></a>
+        <a href="#" class="btn btn-ghost">Watch the 2-min demo</a>
+      </div>
+
+      <div class="hero-creds reveal">
+        <span><strong>$2.4B+</strong> moved monthly</span>
+        <span><strong>32</strong> currencies</span>
+        <span><strong>99.99%</strong> uptime</span>
+        <span><strong>SOC 2 II</strong> · ISO 27001</span>
+      </div>
+    </div>
+
+    <div class="hero-right reveal">
+      <div class="live-feed">
+        <div class="live-feed-head">
+          <span class="title">$ tail -f vault/transactions.log</span>
+          <span class="live"><span class="pulse"></span>STREAMING</span>
+        </div>
+        <div class="live-feed-list">
+          <div class="live-feed-track">
+            <div class="live-row"><span class="time">14:02:18</span><span class="desc">Stripe Inc. <span class="from">/ payout</span></span><span class="amount in">+ 142,890.00</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:02:15</span><span class="desc">AWS EU-West <span class="from">/ vendor</span></span><span class="amount out">– 18,420.00</span><span class="ccy">EUR</span></div>
+            <div class="live-row"><span class="time">14:02:11</span><span class="desc">Acme Manufacturing <span class="from">/ wire</span></span><span class="amount in">+ 286,500.00</span><span class="ccy">GBP</span></div>
+            <div class="live-row"><span class="time">14:02:08</span><span class="desc">Payroll · 142 employees</span><span class="amount out">– 612,840.00</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:02:03</span><span class="desc">FX swap <span class="from">/ EUR → JPY</span></span><span class="amount out">– 89,200.00</span><span class="ccy">EUR</span></div>
+            <div class="live-row"><span class="time">14:01:57</span><span class="desc">Mercato GmbH <span class="from">/ invoice 4421</span></span><span class="amount in">+ 47,200.00</span><span class="ccy">EUR</span></div>
+            <div class="live-row"><span class="time">14:01:52</span><span class="desc">Orbit Holdings <span class="from">/ dividend</span></span><span class="amount in">+ 1,240,000.00</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:01:48</span><span class="desc">Datadog Inc. <span class="from">/ subscription</span></span><span class="amount out">– 4,890.00</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:01:42</span><span class="desc">Treasury sweep <span class="from">/ overnight</span></span><span class="amount in">+ 8,420.55</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:01:38</span><span class="desc">Card · 14 transactions</span><span class="amount out">– 12,440.18</span><span class="ccy">USD</span></div>
+            <!-- repeat for loop -->
+            <div class="live-row"><span class="time">14:02:18</span><span class="desc">Stripe Inc. <span class="from">/ payout</span></span><span class="amount in">+ 142,890.00</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:02:15</span><span class="desc">AWS EU-West <span class="from">/ vendor</span></span><span class="amount out">– 18,420.00</span><span class="ccy">EUR</span></div>
+            <div class="live-row"><span class="time">14:02:11</span><span class="desc">Acme Manufacturing <span class="from">/ wire</span></span><span class="amount in">+ 286,500.00</span><span class="ccy">GBP</span></div>
+            <div class="live-row"><span class="time">14:02:08</span><span class="desc">Payroll · 142 employees</span><span class="amount out">– 612,840.00</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:02:03</span><span class="desc">FX swap <span class="from">/ EUR → JPY</span></span><span class="amount out">– 89,200.00</span><span class="ccy">EUR</span></div>
+            <div class="live-row"><span class="time">14:01:57</span><span class="desc">Mercato GmbH <span class="from">/ invoice 4421</span></span><span class="amount in">+ 47,200.00</span><span class="ccy">EUR</span></div>
+            <div class="live-row"><span class="time">14:01:52</span><span class="desc">Orbit Holdings <span class="from">/ dividend</span></span><span class="amount in">+ 1,240,000.00</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:01:48</span><span class="desc">Datadog Inc. <span class="from">/ subscription</span></span><span class="amount out">– 4,890.00</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:01:42</span><span class="desc">Treasury sweep <span class="from">/ overnight</span></span><span class="amount in">+ 8,420.55</span><span class="ccy">USD</span></div>
+            <div class="live-row"><span class="time">14:01:38</span><span class="desc">Card · 14 transactions</span><span class="amount out">– 12,440.18</span><span class="ccy">USD</span></div>
+          </div>
+        </div>
+        <div class="live-feed-foot">
+          <span><strong>Today:</strong> 8,420 transactions · $24.8M moved</span>
+          <span>Avg latency · 87ms</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ====== Trust strip ====== -->
+<section class="trust" style="padding: 36px 32px;">
+  <div class="trust-inner">
+    <div class="trust-label">
+      <strong>Trusted by 12,000+ companies</strong><br>
+      from venture-backed startups to public co's.
+    </div>
+    <div class="trust-logos">
+      <span class="trust-logo shape-1"><span class="mark"></span>Lattice</span>
+      <span class="trust-logo shape-2"><span class="mark"></span>Northbeam</span>
+      <span class="trust-logo shape-3"><span class="mark"></span>Bowery</span>
+      <span class="trust-logo shape-4"><span class="mark"></span>Halcyon</span>
+      <span class="trust-logo shape-5"><span class="mark"></span>Pylon</span>
+      <span class="trust-logo shape-6"><span class="mark"></span>Stellar</span>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Product Dashboard ====== -->
+<section class="product" id="product">
+  <div class="section-head">
+    <div class="section-eyebrow reveal"><span class="index">[ § 02 / The Product ]</span> · <strong>One operating account.</strong></div>
+    <h2 class="section-title reveal">A <em>real product</em>, not a <span class="accent">marketing illustration</span>.</h2>
+  </div>
+
+  <div class="product-frame reveal">
+    <div class="product-tabs">
+      <button class="product-tab active"><span class="indicator">●</span>Treasury</button>
+      <button class="product-tab"><span class="indicator">○</span>Cards</button>
+      <button class="product-tab"><span class="indicator">○</span>Wires</button>
+      <button class="product-tab"><span class="indicator">○</span>FX desk</button>
+      <button class="product-tab"><span class="indicator">○</span>Audit log</button>
+      <span class="product-tabs-spacer"></span>
+      <span class="product-controls">
+        <span class="product-control">⌘K</span>
+      </span>
+    </div>
+
+    <div class="product-body">
+      <aside class="product-side">
+        <div class="product-side-section">[ ACCOUNTS ]</div>
+        <div class="product-side-item active"><span class="dot"></span>Operating · USD <span class="count">$8.42M</span></div>
+        <div class="product-side-item"><span class="dot"></span>EU subsidiary · EUR <span class="count">€2.1M</span></div>
+        <div class="product-side-item"><span class="dot"></span>UK entity · GBP <span class="count">£840K</span></div>
+        <div class="product-side-item"><span class="dot"></span>APAC · JPY <span class="count">¥124M</span></div>
+        <div class="product-side-section">[ TOOLS ]</div>
+        <div class="product-side-item"><span class="dot"></span>Payments</div>
+        <div class="product-side-item"><span class="dot"></span>Cards <span class="count">42</span></div>
+        <div class="product-side-item"><span class="dot"></span>Vendors <span class="count">128</span></div>
+        <div class="product-side-item"><span class="dot"></span>Reports</div>
+        <div class="product-side-section">[ TEAM ]</div>
+        <div class="product-side-item"><span class="dot"></span>Approvals <span class="count">3</span></div>
+        <div class="product-side-item"><span class="dot"></span>Members <span class="count">14</span></div>
+      </aside>
+
+      <main class="product-main">
+        <div class="product-main-head">
+          <div>
+            <h3>Treasury overview</h3>
+            <span class="sub">Updated 14:02:18 EST · auto-refreshes every 30s</span>
+          </div>
+          <div class="filter">
+            <button>1D</button>
+            <button>1W</button>
+            <button class="active">1M</button>
+            <button>1Y</button>
+            <button>ALL</button>
+          </div>
+        </div>
+
+        <div class="balance-grid">
+          <div class="balance">
+            <div class="ccy"><span class="label">USD · Operating</span><span class="flag usd"></span></div>
+            <div class="amt">$8,420,184.22</div>
+            <div class="delta up">↑ 4.2% · +$340K MoM</div>
+          </div>
+          <div class="balance">
+            <div class="ccy"><span class="label">EUR · Subsidiary</span><span class="flag eur"></span></div>
+            <div class="amt">€2,148,902.50</div>
+            <div class="delta up">↑ 1.8% · +€38K MoM</div>
+          </div>
+          <div class="balance">
+            <div class="ccy"><span class="label">GBP · UK entity</span><span class="flag gbp"></span></div>
+            <div class="amt">£842,500.00</div>
+            <div class="delta dn">↓ 0.6% · −£5K MoM</div>
+          </div>
+          <div class="balance">
+            <div class="ccy"><span class="label">JPY · APAC</span><span class="flag jpy"></span></div>
+            <div class="amt">¥124,820,000</div>
+            <div class="delta up">↑ 2.4% · +¥2.9M MoM</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card-head">
+            <div>
+              <h4>Cash flow · 30 days</h4>
+            </div>
+            <div class="stat">
+              <div class="v">+$2,840,127.40</div>
+              <div class="l">net positive</div>
+            </div>
+          </div>
+          <svg class="chart-svg" viewBox="0 0 760 140" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#d4ff3d" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#d4ff3d" stop-opacity="0"/>
+              </linearGradient>
+              <pattern id="gridP" width="38" height="28" patternUnits="userSpaceOnUse">
+                <path d="M 38 0 L 0 0 0 28" fill="none" stroke="rgba(247,245,240,0.05)" stroke-width="1"/>
+              </pattern>
+            </defs>
+            <rect width="760" height="140" fill="url(#gridP)"/>
+            <path d="M 0,90 L 38,84 L 76,92 L 114,72 L 152,80 L 190,64 L 228,68 L 266,52 L 304,58 L 342,40 L 380,46 L 418,32 L 456,38 L 494,28 L 532,30 L 570,22 L 608,30 L 646,18 L 684,26 L 722,16 L 760,22 L 760,140 L 0,140 Z" fill="url(#chartFill)"/>
+            <path d="M 0,90 L 38,84 L 76,92 L 114,72 L 152,80 L 190,64 L 228,68 L 266,52 L 304,58 L 342,40 L 380,46 L 418,32 L 456,38 L 494,28 L 532,30 L 570,22 L 608,30 L 646,18 L 684,26 L 722,16 L 760,22" fill="none" stroke="#d4ff3d" stroke-width="1.5"/>
+            <circle cx="722" cy="16" r="3" fill="#d4ff3d"/>
+            <circle cx="722" cy="16" r="6" fill="#d4ff3d" fill-opacity="0.3"/>
+          </svg>
+          <div class="chart-axis">
+            <span>Mar 27</span><span>Apr 03</span><span>Apr 10</span><span>Apr 17</span><span>Apr 24</span><span>today</span>
+          </div>
+        </div>
+
+        <div class="tx-card">
+          <div class="tx-card-head">
+            <h4>Recent activity</h4>
+            <span class="more">view all 8,420 →</span>
+          </div>
+          <div class="tx-row">
+            <span class="when">14:02 EST</span>
+            <span class="who">Stripe Inc. <span class="ref">payout · ref VLT-83920</span></span>
+            <span class="amt in">+ $142,890.00</span>
+            <span class="status"><span class="settled"><span class="dot"></span>settled</span></span>
+          </div>
+          <div class="tx-row">
+            <span class="when">14:02 EST</span>
+            <span class="who">AWS EU-West <span class="ref">vendor · ref VLT-83919</span></span>
+            <span class="amt out">– €18,420.00</span>
+            <span class="status"><span class="settled"><span class="dot"></span>settled</span></span>
+          </div>
+          <div class="tx-row">
+            <span class="when">14:01 EST</span>
+            <span class="who">Acme Manufacturing <span class="ref">wire · ref VLT-83918</span></span>
+            <span class="amt in">+ £286,500.00</span>
+            <span class="status"><span class="pending"><span class="dot"></span>pending</span></span>
+          </div>
+          <div class="tx-row">
+            <span class="when">14:01 EST</span>
+            <span class="who">Payroll · 142 employees <span class="ref">batch · ref VLT-83917</span></span>
+            <span class="amt out">– $612,840.00</span>
+            <span class="status"><span class="settled"><span class="dot"></span>settled</span></span>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Capabilities ====== -->
+<section class="caps" id="caps">
+  <div class="section-head">
+    <div class="section-eyebrow reveal"><span class="index">[ § 03 / Capabilities ]</span> · <strong>Six things, done well.</strong></div>
+    <h2 class="section-title reveal">Everything <em>your</em> <span class="accent">CFO</span> wants. Nothing they don't.</h2>
+  </div>
+
+  <div class="caps-grid">
+    <div class="cap reveal">
+      <div class="cap-num">[ 0001 ] <span class="cap-arrow">↗</span></div>
+      <h3>Multi-currency <em>treasury</em></h3>
+      <p>Hold, send, and receive in 32 currencies from one operating account. Native local rails — ACH, SEPA, Faster Payments, SWIFT — no third parties.</p>
+      <div class="cap-meta">
+        <span><strong>32</strong> currencies</span>
+        <span><strong>0.4%</strong> FX spread</span>
+      </div>
+    </div>
+
+    <div class="cap reveal" style="transition-delay: 0.05s;">
+      <div class="cap-num">[ 0002 ] <span class="cap-arrow">↗</span></div>
+      <h3>Real-time <em>wires</em></h3>
+      <p>Domestic wires settle in 60 seconds. International in under an hour. SWIFT GPI tracking on every cross-border payment, end-to-end.</p>
+      <div class="cap-meta">
+        <span><strong>60s</strong> domestic</span>
+        <span><strong>&lt; 1h</strong> international</span>
+      </div>
+    </div>
+
+    <div class="cap reveal" style="transition-delay: 0.1s;">
+      <div class="cap-num">[ 0003 ] <span class="cap-arrow">↗</span></div>
+      <h3>Programmable <em>cards</em></h3>
+      <p>Issue virtual and physical cards with rules built in. Vendor-locked, amount-capped, time-bound. Reconcile to GL automatically.</p>
+      <div class="cap-meta">
+        <span><strong>2.5%</strong> cashback</span>
+        <span><strong>Unlimited</strong> cards</span>
+      </div>
+    </div>
+
+    <div class="cap reveal">
+      <div class="cap-num">[ 0004 ] <span class="cap-arrow">↗</span></div>
+      <h3>Treasury <em>sweep</em></h3>
+      <p>Idle balances earn 4.85% APY in our managed Treasury bills program. SIPC and FDIC coverage up to $125M through partner banks.</p>
+      <div class="cap-meta">
+        <span><strong>4.85%</strong> APY</span>
+        <span><strong>$125M</strong> insured</span>
+      </div>
+    </div>
+
+    <div class="cap reveal" style="transition-delay: 0.05s;">
+      <div class="cap-num">[ 0005 ] <span class="cap-arrow">↗</span></div>
+      <h3>API & <em>SDKs</em></h3>
+      <p>RESTful API, webhooks, and SDKs for Node, Python, Go, Ruby. Sandbox in 2 minutes. Production in days, not months. Your engineers will thank you.</p>
+      <div class="cap-meta">
+        <span><strong>4</strong> SDKs</span>
+        <span><strong>14ms</strong> p99 latency</span>
+      </div>
+    </div>
+
+    <div class="cap reveal" style="transition-delay: 0.1s;">
+      <div class="cap-num">[ 0006 ] <span class="cap-arrow">↗</span></div>
+      <h3>Audit & <em>compliance</em></h3>
+      <p>SOC 2 Type II, ISO 27001, PCI DSS Level 1. Immutable audit log, role-based permissions, dual approvals. Your auditors will thank you too.</p>
+      <div class="cap-meta">
+        <span><strong>SOC 2 II</strong></span>
+        <span><strong>ISO 27001</strong></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Mega stat ====== -->
+<section class="megastat">
+  <div class="megastat-meta reveal">
+    <span><strong>[ § 04 / The Numbers ]</strong> · Last twelve months</span>
+    <span class="lime">● Updated daily · auto from production</span>
+  </div>
+  <h2 class="megastat-num reveal" style="margin-top: 40px;">
+    <span class="currency">$</span><span data-count="84.7" data-suffix="B">0</span>
+  </h2>
+  <p class="megastat-cap reveal">
+    Moved through Vault accounts in the last twelve months. <em>Across 184 markets, in 32 currencies, by 12,000+ companies.</em>
+  </p>
+  <div class="megastat-foot">
+    <div class="cell reveal">
+      <div class="v"><span data-count="12.4">0</span>K</div>
+      <div class="l">Active customers</div>
+    </div>
+    <div class="cell reveal" style="transition-delay: 0.1s;">
+      <div class="v"><span data-count="184">0</span></div>
+      <div class="l">Markets served</div>
+    </div>
+    <div class="cell reveal" style="transition-delay: 0.2s;">
+      <div class="v"><span data-count="99.99" data-suffix="%">0</span></div>
+      <div class="l">Uptime · 12 mo</div>
+    </div>
+    <div class="cell reveal" style="transition-delay: 0.3s;">
+      <div class="v"><span data-count="14" data-suffix="ms">0</span></div>
+      <div class="l">p99 API latency</div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Built for ====== -->
+<section>
+  <div class="section-head">
+    <div class="section-eyebrow reveal"><span class="index">[ § 05 / Audience ]</span> · <strong>Two kinds of operators.</strong></div>
+    <h2 class="section-title reveal">Built for the people who actually <em>read</em> the <span class="accent">statements</span>.</h2>
+  </div>
+
+  <div class="builtfor-grid">
+    <article class="audience reveal">
+      <div class="audience-meta">
+        <span class="index">[ A ] · For Treasury teams</span>
+        <span>Series B+ · Public co's</span>
+      </div>
+      <h3>You manage <em>nine-figure</em> balances. We don't waste your time.</h3>
+      <p>Multi-entity consolidation. Sweep schedules. Counterparty diversification. Bank-grade controls without the bank-grade ergonomics.</p>
+      <ul class="audience-feats">
+        <li>Sweep up to $125M into Treasury bills automatically — yields 4.85% APY</li>
+        <li>Diversify across four partner banks; consolidated reporting in one view</li>
+        <li>Approval workflows with up to seven signers per transaction</li>
+        <li>Real-time NetSuite, QuickBooks, and Xero sync — no CSV imports</li>
+      </ul>
+      <blockquote class="audience-quote">
+        "Vault replaced our treasury management system, our FX provider, and our wire desk. The reconciliation alone saves us a person."
+        <span class="author"><strong>Diane Park</strong> · VP Finance, Halcyon (Series C, $200M ARR)</span>
+      </blockquote>
+    </article>
+
+    <article class="audience reveal" style="transition-delay: 0.1s;">
+      <div class="audience-meta">
+        <span class="index">[ B ] · For Founders</span>
+        <span>Pre-seed → Series A</span>
+      </div>
+      <h3>You're <em>three people</em> in a room. We make banking the boring part.</h3>
+      <p>Open an account in twenty minutes. Wire money in five. Issue cards in two. No relationship managers. No phone calls. Just software.</p>
+      <ul class="audience-feats">
+        <li>Account opens in under twenty minutes — fully online, no faxes, ever</li>
+        <li>Free wires, free FX up to $50K/month, free virtual cards</li>
+        <li>Built-in expense tracking, receipt capture, contractor payments</li>
+        <li>Connect Stripe, Mercury, your investors' wires — all in one ledger</li>
+      </ul>
+      <blockquote class="audience-quote">
+        "We were going to use Mercury. We're glad we waited a week and found Vault. The API alone is reason enough."
+        <span class="author"><strong>Marcus Chen</strong> · CEO, Pylon (Seed, YC W24)</span>
+      </blockquote>
+    </article>
+  </div>
+</section>
+
+<!-- ====== API / Developers ====== -->
+<section class="api" id="api">
+  <div class="section-head">
+    <div class="section-eyebrow reveal"><span class="index">[ § 06 / Developers ]</span> · <strong>For the engineering team.</strong></div>
+    <h2 class="section-title reveal">An API your <em>engineers</em> will <span class="accent">actually like</span>.</h2>
+  </div>
+
+  <div class="api-grid">
+    <div class="api-text reveal">
+      <p>RESTful, idempotent, properly versioned. JSON in, JSON out. <strong>Sandbox accounts in two minutes</strong>; production in days.</p>
+      <p>SDKs for the four languages your team is using. Webhooks for everything that matters. Full OpenAPI spec, with code examples that compile.</p>
+      <ul class="api-list">
+        <li><span class="key">SDKs</span><span><strong>Node · Python · Go · Ruby</strong> · all on Github</span></li>
+        <li><span class="key">DOCS</span><span><strong>docs.vault.com</strong> · with live runnable examples</span></li>
+        <li><span class="key">SLA</span><span><strong>14ms p99</strong> · 99.99% uptime · status.vault.com</span></li>
+        <li><span class="key">SUPPORT</span><span><strong>Slack Connect</strong> · or email a real engineer</span></li>
+      </ul>
+      <a href="#" class="btn btn-lime" style="padding: 13px 20px;">Read the API docs <span class="arrow">↗</span></a>
+    </div>
+
+    <div class="code-card reveal" style="transition-delay: 0.1s;">
+      <div class="code-head">
+        <span class="dot"></span><span class="dot"></span><span class="dot lime"></span>
+        <span class="file">examples/<strong>send-wire.ts</strong></span>
+        <span class="lang">TypeScript</span>
+      </div>
+      <div class="code-body">
+<pre><span class="ln"><span class="kw">import</span> { <span class="key">Vault</span> } <span class="kw">from</span> <span class="str">'@vault/node'</span></span><span class="ln"></span><span class="ln"><span class="kw">const</span> <span class="key">vault</span> <span class="punct">=</span> <span class="kw">new</span> <span class="fn">Vault</span><span class="punct">(</span><span class="str">'sk_live_...'</span><span class="punct">)</span></span><span class="ln"></span><span class="ln"><span class="com">// Send a same-day wire — 60-second settlement</span></span><span class="ln"><span class="kw">const</span> <span class="key">wire</span> <span class="punct">=</span> <span class="kw">await</span> <span class="key">vault</span><span class="punct">.</span><span class="key">wires</span><span class="punct">.</span><span class="fn">create</span><span class="punct">({</span></span><span class="ln">  <span class="key">amount</span><span class="punct">:</span> <span class="num">142890_00</span><span class="punct">,</span> <span class="com">// $142,890.00 in cents</span></span><span class="ln">  <span class="key">currency</span><span class="punct">:</span> <span class="str">'USD'</span><span class="punct">,</span></span><span class="ln">  <span class="key">from_account</span><span class="punct">:</span> <span class="str">'acct_operating_us'</span><span class="punct">,</span></span><span class="ln">  <span class="key">to</span><span class="punct">:</span> <span class="punct">{</span></span><span class="ln">    <span class="key">name</span><span class="punct">:</span> <span class="str">'Acme Manufacturing'</span><span class="punct">,</span></span><span class="ln">    <span class="key">routing</span><span class="punct">:</span> <span class="str">'026009593'</span><span class="punct">,</span></span><span class="ln">    <span class="key">account</span><span class="punct">:</span> <span class="str">'4892017734'</span><span class="punct">,</span></span><span class="ln">  <span class="punct">},</span></span><span class="ln">  <span class="key">memo</span><span class="punct">:</span> <span class="str">'Invoice 4421 · April'</span><span class="punct">,</span></span><span class="ln">  <span class="key">idempotency_key</span><span class="punct">:</span> <span class="str">'inv-4421-2026-04'</span></span><span class="ln"><span class="punct">})</span></span><span class="ln"></span><span class="ln"><span class="fn">console</span><span class="punct">.</span><span class="fn">log</span><span class="punct">(</span><span class="key">wire</span><span class="punct">.</span><span class="key">id</span><span class="punct">,</span> <span class="key">wire</span><span class="punct">.</span><span class="key">status</span><span class="punct">)</span></span><span class="ln"><span class="com">// 'wire_8392lkj...'  'pending' → 'settled' in ~60s</span></span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Pricing ====== -->
+<section id="pricing">
+  <div class="section-head">
+    <div class="section-eyebrow reveal"><span class="index">[ § 07 / Pricing ]</span> · <strong>Honest, ledgered.</strong></div>
+    <h2 class="section-title reveal">Three tiers. <em>No</em> "contact us" <span class="accent">games</span>.</h2>
+  </div>
+
+  <div class="pricing-table reveal">
+    <div class="pricing-row head">
+      <div class="cell-blank"></div>
+      <div class="cell-tier">
+        <div class="tier-name">Starter</div>
+        <div class="tier-desc">For early-stage companies finding product-market fit.</div>
+        <div class="tier-price">$0<span class="unit">/ month</span></div>
+        <div class="tier-sub">no minimums · no setup fees</div>
+        <a href="#" class="tier-cta">Open free account →</a>
+      </div>
+      <div class="cell-tier featured">
+        <div class="tier-name">Growth</div>
+        <div class="tier-desc">For revenue-generating companies that need real banking infrastructure.</div>
+        <div class="tier-price">$249<span class="unit">/ month</span></div>
+        <div class="tier-sub">incl. 50 free wires + 1% FX up to $250K</div>
+        <a href="#" class="tier-cta">Start 30-day trial →</a>
+      </div>
+      <div class="cell-tier">
+        <div class="tier-name">Enterprise</div>
+        <div class="tier-desc">For Series B+ and public companies. Custom contracts, dedicated team.</div>
+        <div class="tier-price">Custom</div>
+        <div class="tier-sub">priced on volume, talks within 24h</div>
+        <a href="#" class="tier-cta">Talk to founders →</a>
+      </div>
+    </div>
+
+    <div class="pricing-row">
+      <div class="cell-feature">Operating accounts</div>
+      <div class="cell-feature">1 currency</div>
+      <div class="cell-feature">Up to 4 currencies</div>
+      <div class="cell-feature">All 32 currencies</div>
+    </div>
+    <div class="pricing-row">
+      <div class="cell-feature">Domestic wires</div>
+      <div class="cell-feature">$15 / each</div>
+      <div class="cell-feature">50 free, then $5</div>
+      <div class="cell-feature">Unlimited free</div>
+    </div>
+    <div class="pricing-row">
+      <div class="cell-feature">FX spread</div>
+      <div class="cell-feature">1.4%</div>
+      <div class="cell-feature">1.0%</div>
+      <div class="cell-feature">0.4%</div>
+    </div>
+    <div class="pricing-row">
+      <div class="cell-feature">Cards (virtual + physical)</div>
+      <div class="cell-feature">5</div>
+      <div class="cell-feature">100</div>
+      <div class="cell-feature">Unlimited</div>
+    </div>
+    <div class="pricing-row">
+      <div class="cell-feature">Treasury sweep · APY</div>
+      <div class="cell-feature"><span class="x">—</span></div>
+      <div class="cell-feature">4.85%</div>
+      <div class="cell-feature">4.85% + custom</div>
+    </div>
+    <div class="pricing-row">
+      <div class="cell-feature">API · SDKs · webhooks</div>
+      <div class="cell-feature"><span class="check"></span></div>
+      <div class="cell-feature"><span class="check"></span></div>
+      <div class="cell-feature"><span class="check"></span></div>
+    </div>
+    <div class="pricing-row">
+      <div class="cell-feature">Approval workflows</div>
+      <div class="cell-feature">2 signers</div>
+      <div class="cell-feature">Up to 4</div>
+      <div class="cell-feature">Up to 7 + custom</div>
+    </div>
+    <div class="pricing-row">
+      <div class="cell-feature">Support</div>
+      <div class="cell-feature"><span class="dim">Email · 24h</span></div>
+      <div class="cell-feature"><span class="dim">Slack · 4h</span></div>
+      <div class="cell-feature"><span class="dim">Dedicated team · 1h</span></div>
+    </div>
+
+    <div class="pricing-foot">
+      <span><strong>All plans:</strong> SOC 2 II · ISO 27001 · FDIC coverage up to $125M</span>
+      <span>Switch tiers anytime · prorated</span>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Promise ====== -->
+<section class="promise">
+  <div class="promise-eyebrow"><strong>[ § 08 / Closing ]</strong> · For the people who treat their books like inventory, not paperwork.</div>
+  <h2 class="promise-title">
+    Banking should feel <em>like</em> <span class="accent">software</span>. Not like <em>compliance</em>.
+  </h2>
+  <div class="promise-actions">
+    <a href="#" class="btn btn-lime">Open an account · 20 minutes <span class="arrow">↗</span></a>
+    <a href="#" class="btn btn-ghost">Read the founder's letter</a>
+  </div>
+</section>
+
+<!-- ====== Footer ====== -->
+<footer>
+  <div class="footer-top">
+    <div class="footer-brand">
+      <a href="#" class="logo">
+        <span class="logo-mark">V</span>
+        Vault
+      </a>
+      <p>Banking infrastructure for serious operators. Made in NYC and Singapore. Backed by Sequoia, Ribbit, and 142 founders we couldn't have built without.</p>
+      <span class="footer-status"><span class="dot"></span><strong>All systems operational</strong> · 14ms</span>
+    </div>
+    <div class="footer-col">
+      <h5>[ PRODUCT ]</h5>
+      <ul>
+        <li><a href="#">Treasury</a></li>
+        <li><a href="#">Cards</a></li>
+        <li><a href="#">Wires & FX</a></li>
+        <li><a href="#">API</a></li>
+        <li><a href="#">Changelog</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>[ COMPANY ]</h5>
+      <ul>
+        <li><a href="#">About</a></li>
+        <li><a href="#">Customers</a></li>
+        <li><a href="#">Manifesto</a></li>
+        <li><a href="#">Careers · 12</a></li>
+        <li><a href="#">Press kit</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>[ DEVELOPERS ]</h5>
+      <ul>
+        <li><a href="#">Documentation</a></li>
+        <li><a href="#">API reference</a></li>
+        <li><a href="#">Status · 99.99%</a></li>
+        <li><a href="#">SDKs · Github</a></li>
+        <li><a href="#">Changelog</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>[ LEGAL ]</h5>
+      <ul>
+        <li><a href="#">Security · SOC 2</a></li>
+        <li><a href="#">Privacy</a></li>
+        <li><a href="#">Terms</a></li>
+        <li><a href="#">Disclosures</a></li>
+        <li><a href="#">FDIC partners</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-mega">Vault.</div>
+
+  <div class="footer-bottom">
+    <span>© 2026 Vault Financial Inc. · Member FDIC through partner banks · Vault is not a bank.</span>
+    <div class="legal">
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+      <a href="#">Cookies</a>
+      <a href="#">Disclosures</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Reveal observer
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // Word reveal in hero (staggered on load)
+  document.querySelectorAll('.word-reveal').forEach((w, i) => {
+    setTimeout(() => w.classList.add('in'), 200 + i * 80);
+  });
+
+  // Scroll progress
+  const progress = document.getElementById('progress');
+  window.addEventListener('scroll', () => {
+    const sp = window.scrollY;
+    const wh = document.documentElement.scrollHeight - window.innerHeight;
+    progress.style.width = (sp / wh * 100) + '%';
+  });
+
+  // Animated counters
+  const cIO = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      const target = parseFloat(el.dataset.count);
+      const suffix = el.dataset.suffix || '';
+      const decimals = (el.dataset.count.split('.')[1] || '').length;
+      let cur = 0;
+      const duration = 1800;
+      const start = performance.now();
+      const tick = (now) => {
+        const t = Math.min((now - start) / duration, 1);
+        // ease-out
+        const eased = 1 - Math.pow(1 - t, 3);
+        cur = target * eased;
+        el.textContent = decimals > 0 ? cur.toFixed(decimals) + suffix : Math.floor(cur) + suffix;
+        if (t < 1) requestAnimationFrame(tick);
+        else el.textContent = (decimals > 0 ? target.toFixed(decimals) : target) + suffix;
+      };
+      requestAnimationFrame(tick);
+      cIO.unobserve(el);
+    });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('[data-count]').forEach(el => cIO.observe(el));
+
+  // Product tabs
+  document.querySelectorAll('.product-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.product-tab').forEach(t => {
+        t.classList.remove('active');
+        const ind = t.querySelector('.indicator');
+        if (ind) ind.textContent = '○';
+      });
+      tab.classList.add('active');
+      const ind = tab.querySelector('.indicator');
+      if (ind) ind.textContent = '●';
+    });
+  });
+
+  // Filter buttons
+  document.querySelectorAll('.product-main-head .filter button').forEach(b => {
+    b.addEventListener('click', () => {
+      b.parentElement.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
